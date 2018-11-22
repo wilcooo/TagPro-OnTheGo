@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Tag on the Go
-// @version      0.2
+// @version      0.3
 // @description  Move your ball using a touchscreen, and other improvements for mobile gameplay
 // @author       Ko
-// @include      http://tagpro-*.koalabeast.com:*
+// @include      http://tagpro-*.koalabeast.com*
 // @require      https://greasyfork.org/scripts/371240/code/TagPro%20Userscript%20Library.js
 // @icon         https://github.com/wilcooo/TagPro-OnTheGo/raw/master/icon.png
 // @grant        GM_setValue
@@ -29,10 +29,10 @@ var settings = tpul.settings.addSettings({
     fields: {
         vibration: {
             type: 'int',
-            default: 200,
+            default: 100,
             min: 0,
             max: 1000,
-            label: "How many milliseconds to vibrate",
+            label: "How many milliseconds to vibrate (set to 0 to turn of)",
         }
     },
 
@@ -47,6 +47,7 @@ var settings = tpul.settings.addSettings({
 var vibration = settings.get('vibration');
 
 
+if (!location.port) return;
 
 /* global tagpro, $ */
 
@@ -72,32 +73,34 @@ tagpro.ready(function(){
 
 
     // =====TOUCH CONTROL=====
+    (function() {
+        // DO NOT CHANGE ANYTHING IN THIS FUNCTION, AS IT CAN BREAK OTHER TAGPRO SCRIPTS.
+        // DON'T EVEN MINIFY IT.
+        if (!tagpro.KeyComm) tagpro.KeyComm = {};
+        if (!(tagpro.KeyComm.version >= 2.0)) tagpro.KeyComm.version = 2.0;
+        else return;
 
-    var initKeyComm = function () {    // DO NOT CHANGE THIS FUNCTION, AS IT CAN BREAK OTHER TP SCRIPTS
-        if (tagpro.KeyComm) return;
-        else tagpro.KeyComm = true;
-
-        tagpro.KeyComm = {
-            sentDir: {},
-            pressedDir: {},
-            keyCount: 1,
-        };
+        tagpro.KeyComm.sentDir     = {};
+        tagpro.KeyComm.sentTime    = {};
+        tagpro.KeyComm.pressedDir  = {};
+        tagpro.KeyComm.pressedTime = {};
+        tagpro.KeyComm.keyCount    = 1;
 
         var tse = tagpro.socket.emit;
 
         tagpro.socket.emit = function(event, args) {
             if (event === 'keydown') {
                 tagpro.KeyComm.sentDir[args.k] = true;
+                tagpro.KeyComm.sentTime[args.k] = Date.now();
                 args.t = tagpro.KeyComm.keyCount++;
             }
             if (event === 'keyup') {
                 tagpro.KeyComm.sentDir[args.k] = false;
+                tagpro.KeyComm.sentTime[args.k] = Date.now();
                 args.t = tagpro.KeyComm.keyCount++;
             }
             tse(event, args);
         };
-
-
 
 
         tagpro.KeyComm.stop = function() {
@@ -113,12 +116,27 @@ tagpro.ready(function(){
 
         tagpro.KeyComm.send = function(keys,short) {
 
-            for (var k in keys) {
-                if (!tagpro.KeyComm.sentDir[keys[k]])
-                    tagpro.socket.emit('keydown', {k: keys[k]} );
+            for (var key of keys) {
+                if (!tagpro.KeyComm.sentDir[key])
+                    tagpro.socket.emit('keydown', {k: key} );
             }
 
-            if (short) setTimeout(tagpro.KeyComm.stop,20);
+            if (short === true) short = 20;
+            if (short) setTimeout(tagpro.KeyComm.stop,short);
+        };
+
+
+        tagpro.KeyComm.set = function(keys) {
+
+            var allkeys = ['up','down','left','right'];
+
+            for (var key of allkeys) {
+                if ( keys.includes(key) && !tagpro.KeyComm.sentDir[key] ) {
+                    tagpro.socket.emit('keydown', {k: key} );
+                } else if (tagpro.KeyComm.sentDir[key]) {
+                    tagpro.socket.emit('keyup', {k: key} );
+                }
+            }
         };
 
 
@@ -128,21 +146,25 @@ tagpro.ready(function(){
                 case tagpro.keys.down[1]:
                 case tagpro.keys.down[2]:
                     tagpro.KeyComm.pressedDir.down = true;
+                    tagpro.KeyComm.pressedTime.down = Date.now();
                     break;
                 case tagpro.keys.up[0]:
                 case tagpro.keys.up[1]:
                 case tagpro.keys.up[2]:
                     tagpro.KeyComm.pressedDir.up = true;
+                    tagpro.KeyComm.pressedTime.up = Date.now();
                     break;
                 case tagpro.keys.left[0]:
                 case tagpro.keys.left[1]:
                 case tagpro.keys.left[2]:
                     tagpro.KeyComm.pressedDir.left = true;
+                    tagpro.KeyComm.pressedTime.left = Date.now();
                     break;
                 case tagpro.keys.right[0]:
                 case tagpro.keys.right[1]:
                 case tagpro.keys.right[2]:
                     tagpro.KeyComm.pressedDir.right = true;
+                    tagpro.KeyComm.pressedTime.right = Date.now();
                     break;
             }
         });
@@ -153,26 +175,30 @@ tagpro.ready(function(){
                 case tagpro.keys.down[1]:
                 case tagpro.keys.down[2]:
                     tagpro.KeyComm.pressedDir.down = false;
+                    tagpro.KeyComm.pressedTime.down = Date.now();
                     break;
                 case tagpro.keys.up[0]:
                 case tagpro.keys.up[1]:
                 case tagpro.keys.up[2]:
                     tagpro.KeyComm.pressedDir.up = false;
+                    tagpro.KeyComm.pressedTime.up = Date.now();
                     break;
                 case tagpro.keys.left[0]:
                 case tagpro.keys.left[1]:
                 case tagpro.keys.left[2]:
                     tagpro.KeyComm.pressedDir.left = false;
+                    tagpro.KeyComm.pressedTime.left = Date.now();
                     break;
                 case tagpro.keys.right[0]:
                 case tagpro.keys.right[1]:
                 case tagpro.keys.right[2]:
                     tagpro.KeyComm.pressedDir.right = false;
+                    tagpro.KeyComm.pressedTime.right = Date.now();
                     break;
             }
         });
-    };
-    initKeyComm();
+    })();
+
 
 
     // Disable scrolling / panning / zooming with touch
@@ -201,9 +227,14 @@ tagpro.ready(function(){
             }
 
             // Calculate distance:
-            var dist = Math.max( x - origin.x, y - origin.y );
+            var dist = Math.max(
+                x - origin.x,
+                y - origin.y,
+                origin.x - x,
+                origin.y - y
+            );
 
-            if (dist < deadzone) tagpro.KeyComm.stop();
+            if (dist < deadzone) return tagpro.KeyComm.stop();
 
             // Calculate direction:
             var n = Math.floor(0.5 + 4 * Math.atan2(y - origin.y, x - origin.x) / Math.PI);
@@ -214,29 +245,37 @@ tagpro.ready(function(){
 
                 switch (n) {
                     case -3:
-                        tagpro.KeyComm.send(['left','up']);
+                        console.log('upleft');
+                        tagpro.KeyComm.set(['left','up']);
                         break;
                     case -2:
-                        tagpro.KeyComm.send(['up']);
+                        console.log('up');
+                        tagpro.KeyComm.set(['up']);
                         break;
                     case -1:
-                        tagpro.KeyComm.send(['right','up']);
+                        console.log('upright');
+                        tagpro.KeyComm.set(['right','up']);
                         break;
                     case 0:
-                        tagpro.KeyComm.send(['right']);
+                        console.log('right');
+                        tagpro.KeyComm.set(['right']);
                         break;
                     case 1:
-                        tagpro.KeyComm.send(['right','down']);
+                        console.log('downright');
+                        tagpro.KeyComm.set(['right','down']);
                         break;
                     case 2:
-                        tagpro.KeyComm.send(['down']);
+                        console.log('down');
+                        tagpro.KeyComm.set(['down']);
                         break;
                     case 3:
-                        tagpro.KeyComm.send(['down','left']);
+                        console.log('downleft');
+                        tagpro.KeyComm.set(['down','left']);
                         break;
                     case 4:
                     case -4:
-                        tagpro.KeyComm.send(['left']);
+                        console.log('left');
+                        tagpro.KeyComm.set(['left']);
                         break;
                     default:
                         tagpro.KeyComm.stop();
