@@ -1,12 +1,50 @@
 // ==UserScript==
 // @name         Tag on the Go
-// @version      0.1
+// @version      0.2
 // @description  Move your ball using a touchscreen, and other improvements for mobile gameplay
 // @author       Ko
 // @include      http://tagpro-*.koalabeast.com:*
-// @grant        none
+// @require      https://greasyfork.org/scripts/371240/code/TagPro%20Userscript%20Library.js
+// @icon         https://github.com/wilcooo/TagPro-OnTheGo/raw/master/icon.png
+// @grant        GM_setValue
+// @grant        GM_getValue
 // ==/UserScript==
 
+
+// =====SETTINGS SECTION=====
+
+
+
+// I use tpul for this userscripts' options.
+// see: https://github.com/wilcooo/TagPro-UserscriptLibrary
+
+
+var settings = tpul.settings.addSettings({
+    id: 'TagOnTheGo',
+    title: "Tag on the Go",
+    tooltipText: "Configure Tag on the Go",
+    icon: "https://github.com/wilcooo/TagPro-OnTheGo/raw/master/icon.png",
+
+
+    fields: {
+        vibration: {
+            type: 'int',
+            default: 200,
+            min: 0,
+            max: 1000,
+            label: "How many milliseconds to vibrate",
+        }
+    },
+
+    events: {
+
+        save: function(){
+            vibration = settings.get("vibration");
+        },
+    }
+});
+
+var vibration = settings.get('vibration');
 
 
 
@@ -165,15 +203,15 @@ tagpro.ready(function(){
             // Calculate distance:
             var dist = Math.max( x - origin.x, y - origin.y );
 
-            if (dist > deadzone) tagpro.KeyComm.stop();
+            if (dist < deadzone) tagpro.KeyComm.stop();
 
             // Calculate direction:
             var n = Math.floor(0.5 + 4 * Math.atan2(y - origin.y, x - origin.x) / Math.PI);
             if (n != last) {
-                console.log(n);
                 last = n;
 
-                tagpro.KeyComm.stop();
+                navigator.vibrate(vibration);
+
                 switch (n) {
                     case -3:
                         tagpro.KeyComm.send(['left','up']);
